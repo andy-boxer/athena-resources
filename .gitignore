@@ -1,0 +1,19 @@
+# System / Log files
+*.DS_Store
+*.log
+
+# Archives
+*.zip
+
+# Project files
+.idea
+.vscode/
+
+# Node
+node_modules/
+
+# ETC
+~*
+.env
+
+vendor
