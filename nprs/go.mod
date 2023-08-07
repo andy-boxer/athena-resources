@@ -1,4 +1,4 @@
-module github.com/andy-boxer/athena-resources/lids
+module github.com/andy-boxer/athena-resources/nprs
 
 go 1.20
 
