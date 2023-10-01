@@ -1,0 +1,56 @@
+name: 'Get Changed Org Config files'
+description: 'Retrieves a list of changed organisation configs'
+inputs:
+  filter:
+    description: "String to match against the change file paths"
+    required: false
+  state:
+    description: "Which subset of files to return (created|deleted)"
+    required: true
+outputs:
+  changes:
+    description: "list of changed files"
+    value: ${{ steps.changes.outputs.changes }}
+runs:
+  using: "composite"
+  steps:
+    - name: checkout
+      uses: actions/checkout@v3
+      with:
+        fetch-depth: ${{ github.event_name == 'pull_request' && 2 || 0 }}
+
+    - name: Get changed files
+      id: changes
+      shell: bash
+      run: |
+        if ${{ github.event_name == 'pull_request' }}; then
+            changes="$(git diff --name-only -r HEAD^1 HEAD)"
+        else
+            changes="$(git diff --name-only -r ${{ github.event.before }} ${{ github.event.after }})"
+        fi
+        
+        output="["
+        for item in $changes; do
+          if [[ "${item}" =~ ^(${{ inputs.filter }}) ]]; then 
+            environment=$(basename "${item}" | awk -F'.' '{ print $1 }')
+            organisation=$(basename "${item}" | awk -F'.' '{ print $2 }')
+            region=$(basename "${item}" | awk -F'.' '{ print $3 }')
+            org="{\"organisation\": \"${organisation}\",\"environment\": \"${environment}\",\"region\": \"${region}\"}"
+            if [[ -f ${item} ]]; then
+              if [[ "${{ inputs.state }}" == "created" ]]; then
+                output="${output}${org},"
+              fi
+            else
+              if [[ "${{ inputs.state }}" == "deleted" ]]; then
+                output="${output}${org},"
+              fi
+            fi
+          fi
+        done
+        if [[ -z "${output::-1}" ]]; then
+          output="[]"
+        else
+          output="${output::-1}]"
+        fi
+        echo "${output}"
+        echo "changes=${output}" >> $GITHUB_OUTPUT

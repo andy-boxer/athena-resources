@@ -1,0 +1,22 @@
+name: 'Labeled Image Deployment Progress'
+description: 'Get progress and status details for a LID deployment by UID'
+inputs:
+  deployment_server:
+    description: 'The url of the lid deployment server'
+    required: true
+  lid_uid:
+    description: 'The uid of the LID to track'
+    required: true
+  namespace:
+    description: "The name of the namespace into which the lid is deployed"
+    required: true
+outputs:
+  status:
+    description: 'The completion status of the deployment'
+  uid:
+    description: 'The UID of the affected LID resource'
+  replicas:
+    description: 'The number of running instances for the LID'
+runs:
+  using: 'node16'
+  main: 'progress.js'

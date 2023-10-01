@@ -1,0 +1,22 @@
+name: 'Labeled Image Deployer'
+description: 'Generate a deployment request and wait for a completion status'
+inputs:
+  deployment_server:
+    description: 'The url of the lid deployment server'
+    required: true
+  image_ref:
+    description: 'The fqdn of the service image to deploy'
+    required: true
+  namespace:
+    description: "The name of the namespace into which to deploy the service"
+    required: true
+  deployment_kind:
+    description: "The deployment kind required"
+    required: true
+    default: "regular"
+outputs:
+  status:
+    description: 'The completion status of the deployment'
+runs:
+  using: 'node16'
+  main: 'deployment.js'

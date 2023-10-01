@@ -1,0 +1,98 @@
+name: 'Build Labeled image'
+description: 'Builds a labeled image'
+inputs:
+  image-registry-url:
+    description: 'url for the image repository to push to'
+    required: true
+    default: '404210962762.dkr.ecr.eu-west-2.amazonaws.com/abx01-repository'
+  docker-file:
+    description: 'Path to your docker file relative to the root of your repository'
+    required: true
+  service-var-file:
+    description: 'Path to your service variables file relative to the root of your repository'
+    required: true
+  image-name-prefix:
+    description: 'The prefix to use for the deployable image tag'
+    required: true
+outputs:
+  image-ref:
+    description: "fqdn of the built image"
+    value: ${{ steps.build-image.outputs.image-ref }}
+runs:
+  using: "composite"
+  steps:
+    - id: create-labelled-docker-file
+      shell: bash
+      run : |
+        set -ea
+        
+        ## Initialise vars
+        readonly base_dir="$(pwd)"
+        readonly docker_file="${base_dir}/${{ inputs.docker-file }}"
+        
+        cat >> ${docker_file} <<'EOF'
+        
+        # Setup build args for labels
+        ### Define label arguments
+        ARG BUILD_TIME=""
+        ARG BUILD_TIMESTAMP=""
+        ARG LID_VARS=""
+        ARG GIT_REPO=""
+        ARG GIT_BRANCH=""
+        ARG GIT_COMMIT=""
+        ARG GIT_TAG=""
+
+        ### Add images labels
+        LABEL lid.build_time="${BUILD_TIME}"
+        LABEL lid.build_timestamp="${BUILD_TIMESTAMP}"
+        LABEL lid.service_vars="${LID_VARS}"
+        LABEL lid.git_commit="${GIT_COMMIT}"
+        LABEL lid.git_repo="${GIT_REPO}"
+        LABEL lid.git_branch="${GIT_BRANCH}"
+        LABEL lid.git_tag="${GIT_TAG}"
+        EOF
+
+    - id: build-image
+      shell: bash
+      run: |
+        set -ea
+        
+        ## Initialise vars
+        readonly registry="${{ inputs.image-registry-url }}"
+        readonly prefix="${{ inputs.image-name-prefix }}"
+        readonly base_dir="$(pwd)"
+        readonly var_source="${base_dir}/${{ inputs.service-var-file }}"
+        readonly docker_file="${base_dir}/${{ inputs.docker-file }}"
+        readonly build_dir="$(dirname ${docker_file})"
+        
+        build_version=$(grep ServiceVersion ${var_source} | awk -F'"' '{ print $4 }')
+        build_tag="${registry}:${prefix}-${build_version}"
+        latest_tag="${registry}:${prefix}-latest"
+       
+        if [[ ! -f ${var_source} ]]; then
+          echo "WARNING service vars file not found at ${var_source}."
+          exit 1
+        fi
+        
+        echo "Building in: ${build_dir}"
+        
+        # build using docker. Note should migrate to buildkit
+        docker buildx build --platform linux/amd64 "${build_dir}" \
+        -t "${build_tag}" \
+        -f "${docker_file}" \
+        --build-arg BUILD_TIME="$(date)" \
+        --build-arg BUILD_TIMESTAMP="$(date +%s)" \
+        --build-arg GIT_COMMIT="$(git log --format=%H -n 1)" \
+        --build-arg GIT_REPO="$(git config --get remote.origin.url)" \
+        --build-arg GIT_BRANCH="${BRANCH_NAME}" \
+        --build-arg GIT_TAG="$(git describe --always)" \
+        --build-arg LID_VARS="$(cat "${var_source}" | base64 2>/dev/null || echo '')"
+        
+        # Push the image to the remote repository
+        docker push -q "${build_tag}"
+        # Push the image to the remote repository as latest build
+        docker tag "${build_tag}" "${latest_tag}"
+        docker push -q "${latest_tag}"
+        
+        # output the image reference for use in other steps
+        echo "image-ref=$(echo "${build_tag}")" >> $GITHUB_OUTPUT
