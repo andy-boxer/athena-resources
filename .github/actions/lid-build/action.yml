@@ -77,7 +77,7 @@ runs:
         echo "Building in: ${build_dir}"
         
         # build using docker. Note should migrate to buildkit
-        docker buildx build --platform linux/amd64 "${build_dir}" \
+        docker buildx build --platform linux/arm64 "${build_dir}" \
         -t "${build_tag}" \
         -f "${docker_file}" \
         --build-arg BUILD_TIME="$(date)" \
